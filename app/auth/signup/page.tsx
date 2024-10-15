@@ -1,15 +1,131 @@
 "use client"
 import MainLayout from "@/components/layout/mainLayout";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FaArrowRight, FaGoogle } from 'react-icons/fa';
 import { useForm } from "react-hook-form";
-import React,{ useEffect , useState} from "react"; 
+import { doc, setDoc, getDoc , Timestamp} from "firebase/firestore";
+import {
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  sendEmailVerification,
+  deleteUser
+}
+from 'firebase/auth';
+import { auth, googleProvider, db } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast"; 
+import { useEffect, useState } from "react";
 
-export default function Login() {
-  const { register, handleSubmit, formState: { errors } } = useForm(); 
+export default function Signup() {
+  const { register, handleSubmit, formState: { errors }, reset } = useForm(); 
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { toast } = useToast();
+  const router = useRouter();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            await user.reload();
+            setIsLoggedIn(user.emailVerified);
+            if (!user.emailVerified) {
+                toast({
+                    variant: "theme2",
+                    title: "Email not verified!",
+                    description: "Please verify your email before logging in.",
+                });
+            }
+        } else {
+            setIsLoggedIn(false);
+        }
+    });
+
+    return () => unsubscribe(); // cleanup function, detaches the listener from firebase when component unmounts
+  }, []);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+        router.push("/dashboard");
+    }
+  }, [isLoggedIn, router]);
+
+  const saveUserCredentials = async (uid:string, username:string, email:string) => {
+    const userDocRef = doc(db, "users", uid);
+    const existingUser = await getDoc(userDocRef);
+    if (existingUser.exists()) {
+        throw new Error("User already exists");
+    } else {
+        await setDoc(userDocRef, {
+            uid,
+            username,
+            email,
+            joining: Timestamp.now()
+        });
+    }
+  };
 
   const onSubmit = async (data:any) => {
-    console.log(data);
+    let user:any = null;
+    
+    try {
+      const userCredentials = await createUserWithEmailAndPassword(auth, data.email, data.password); // auto signin
+      const user = userCredentials.user;
+
+      await saveUserCredentials(user.uid, data.uname, data.email);
+
+      await sendEmailVerification(user);
+
+      toast({
+        variant: "theme1",
+        title: "Account created successfully",
+        description: "Please verify your email address...",
+      })
+      reset();
+
+      await signOut(auth); // signout forcefully
+    } catch (error:any) {
+      if (user) { // if error occurs after user creation, delete the user
+        await deleteUser(user);
+      }
+      
+      toast({
+        variant: "theme2",
+        title: "Signup failed!",
+        description: error.message,
+      })
+    }
+  };
+
+  const googleSubmit = async () => {
+    let user:any = null;
+    
+    try {
+      const userCredentials = await signInWithPopup(auth, googleProvider);
+      const user = userCredentials.user;
+
+      const email = user.email ?? "default@example.com";
+      await saveUserCredentials(
+        user.uid,
+        user.displayName || email.split("@")[0],
+        email
+      );
+
+      toast({
+        variant: "theme1",
+        title: "Google Signup successful!",
+      })
+    } catch (error:any) {
+      if (user) { // if error occurs after user creation, delete the user
+        await deleteUser(user);
+      }
+      
+      toast({
+        variant: "theme2",
+        title: "Google Signup failed!",
+        description: error.message,
+      })
+    }
   };
 
   return (
@@ -77,7 +193,7 @@ export default function Login() {
             </button>
           </form>
 
-          <button className="bg-gradient-login-button text-[#ffffff] text-[16px] font-[500px] rounded-[8px] cursor-pointer ml-[8px] p-[10px] mb-[15px] transition duration-300 ease-in-out w-[100%] max-w-[300px] shadow-login-button-shadow hover:login-button-hover flex justify-center items-center" >
+          <button className="bg-gradient-login-button text-[#ffffff] text-[16px] font-[500px] rounded-[8px] cursor-pointer ml-[8px] p-[10px] mb-[15px] transition duration-300 ease-in-out w-[100%] max-w-[300px] shadow-login-button-shadow hover:login-button-hover flex justify-center items-center" onClick={googleSubmit}>
               <FaGoogle className="text-[18px] mr-[8px] align-middle" /> Signup with Google
           </button>
 

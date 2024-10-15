@@ -3,25 +3,101 @@ import MainLayout from "@/components/layout/mainLayout";
 import Link from "next/link";
 import { FaGoogle, FaArrowRight } from 'react-icons/fa';
 import { useForm } from "react-hook-form";
-import { useToast } from "@/hooks/use-toast"; 
+import { useToast } from "@/hooks/use-toast";
+import { auth, googleProvider, db } from "@/lib/firebase";
+import { signInWithEmailAndPassword, signInWithPopup, onAuthStateChanged, deleteUser } from "firebase/auth";
+import { doc, setDoc, getDoc, Timestamp } from "firebase/firestore";
+import { useEffect, useState } from "react"; 
+import { useRouter } from "next/navigation";
 
 export default function Login() {
-  const { register, handleSubmit, formState: { errors } } = useForm(); 
+  const { register, handleSubmit, formState: { errors } } = useForm();
+  const [isLoggedIn, setIsLoggedIn] = useState(false); 
   const { toast } = useToast();
+  const router = useRouter();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+        if (user && user.emailVerified) {
+            setIsLoggedIn(true);
+        } else {
+            setIsLoggedIn(false);
+        }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+        router.push("/dashboard");
+    }
+  }, [isLoggedIn, router]);
+
+  const saveUserCredentials = async (uid:string, username:string, email:string) => {
+    const userDocRef = doc(db, "users", uid);
+    const existingUser = await getDoc(userDocRef);
+    if (!existingUser.exists()) {
+      await setDoc(userDocRef, {
+          uid,
+          username,
+          email,
+          joining: Timestamp.now()
+      });
+    }
+  };
 
   const onSubmit = async (data:any) => {
-    if(data.email === "shamim" && data.password === "1234"){
-      toast({
-        variant: "theme1",
-        title: "Login Success",
-        description: "You have successfully logged in",
-      });
-    }else{
+    try {
+      const userCredentials = await signInWithEmailAndPassword(auth, data.email, data.password);
+      const user = userCredentials.user;
+
+      if (user.emailVerified) {
+        toast({
+          variant: "theme1",
+          title: "Login successful",
+          description: "You have successfully logged in."
+        });
+      }else{
+        await auth.signOut();
+        toast({
+          variant: "theme2",
+          title: "Email not verified!",
+          description: "Please verify your email before logging in."
+        });
+      }
+    } catch (error:any) {
       toast({
         variant: "theme2",
-        title: "Login Failed",
-        description: "Invalid email or password",
+        title: "Login failed",
+        description: "Please check your credentials."
       });
+    }
+  };
+
+  const googleButtonHandler = async () => {
+    try {
+        const userCredential = await signInWithPopup(auth, googleProvider);
+        const user = userCredential.user;
+
+        if (user.emailVerified) {
+            const email = user.email ?? "default@example.com";
+            await saveUserCredentials(user.uid, user.displayName || email.split("@")[0], email);
+        }else {
+            await auth.signOut();
+
+            toast({
+                variant: "theme2",
+                title: "Email not verified!",
+                description: "Please verify your email before logging in."
+            });
+        }
+    }catch (error:any) {
+        toast({
+            variant: "theme2",
+            title: "Google login failed!",
+            description: error.message
+        });
     }
   };
 
@@ -73,7 +149,7 @@ export default function Login() {
             </button>
           </form>
 
-          <button className="font-sarala bg-gradient-login-button text-[#ffffff] text-[16px] font-[500px] rounded-[8px] cursor-pointer ml-[8px] p-[10px] mb-[15px] transition duration-300 ease-in-out w-[100%] max-w-[300px] shadow-login-button-shadow hover:login-button-hover flex justify-center items-center" >
+          <button className="font-sarala bg-gradient-login-button text-[#ffffff] text-[16px] font-[500px] rounded-[8px] cursor-pointer ml-[8px] p-[10px] mb-[15px] transition duration-300 ease-in-out w-[100%] max-w-[300px] shadow-login-button-shadow hover:login-button-hover flex justify-center items-center" onClick={googleButtonHandler}>
               <FaGoogle className="text-[18px] mr-[8px] align-middle" /> Sign in with Google
           </button>
 

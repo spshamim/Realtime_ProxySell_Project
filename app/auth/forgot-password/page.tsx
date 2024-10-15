@@ -3,13 +3,48 @@ import MainLayout from "@/components/layout/mainLayout";
 import Link from "next/link";
 import { FaArrowLeft } from 'react-icons/fa';
 import { useForm } from "react-hook-form";
-import React,{ useEffect , useState} from "react"; 
+import { auth, db } from "@/lib/firebase";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
 
-export default function Login() {
-  const { register, handleSubmit, formState: { errors } } = useForm(); 
+export default function ForgotPassword() {
+  const { register, handleSubmit, formState: { errors } } = useForm();
+  const { toast } = useToast(); 
+
+  const checkEmailExists = async (email:string) => {
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("email", "==", email));
+    const querySnapshot = await getDocs(q);
+    return !querySnapshot.empty;
+  };
 
   const onSubmit = async (data:any) => {
-    console.log(data);
+    const emailExists = await checkEmailExists(data.email);
+
+    if(!emailExists) {
+      toast({
+        variant: "theme2",
+        title: "Email not found!",
+        description: "The email you entered does not exist."
+      });
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, data.email);
+      toast({
+        variant: "theme1",
+        title: "Reset email sent!",
+        description: "Please check your email for instructions."
+      })
+    } catch (error:any) {
+      toast({
+        variant: "theme2",
+        title: "Send reset email failed!",
+        description: error.message
+      });
+    }
   };
 
   return (
