@@ -1,3 +1,4 @@
+import { BiBorderLeft } from "react-icons/bi";
 import type { Config } from "tailwindcss";
 import type { PluginAPI } from "tailwindcss/types/config";
 
@@ -100,6 +101,7 @@ const config: Config = {
         'gradient-tool-page' : 'radial-gradient(circle, #250000, #0b0b0b)',
         'gradient-login-wrapper': 'radial-gradient(circle, #3b0b0b, #1a1a1a)',
         'gradient-login-button': 'linear-gradient(135deg, #ad2020, #b30000)',
+        'test-screen': 'radial-gradient(circle 200px, #F5F5F7, #FFE1FF)',
       },
 	  boxShadow: {
         'button-boxshadow': '0 4px 15px rgba(255, 0, 0, 0.3), inset 0 0 10px rgba(255, 0, 0, 0.6)',
@@ -172,6 +174,15 @@ const config: Config = {
       ".logout-button": {
         transform: "scale(1.05)",
         boxShadow: '0 0 1px #ff0707, 0 0 1px #FF073A, 0 0 30px #ff0707',
+      },
+      ".test-button": {
+        transform: "scale(1.05)",
+        boxShadow: '0 0 1px #7E60BF, 0 0 1px #433878, 0 0 20px #7E60BF',
+      },
+      ".test-container": {
+        boxShadow: '0 0 20px #343434CC',
+        borderLeft: "1px solid #433878",
+        borderTop: "1px solid #433878",
       },
     });
     },
